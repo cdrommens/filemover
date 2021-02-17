@@ -21,9 +21,10 @@ public class FilePollingIntegrationFlow {
     @Bean
     public IntegrationFlow inboundFileIntegration(
             @Qualifier("sourceDirectory") MessageSource<File> sourceDirectory,
-            @Qualifier("targetDirectory") MessageHandler targetDirectory) {
+            @Qualifier("targetDirectory") MessageHandler targetDirectory,
+            @Value("${delay:5000}") long delay) {
         return IntegrationFlows.from(sourceDirectory,
-                c -> c.poller(Pollers.fixedDelay(5000)))
+                c -> c.poller(Pollers.fixedDelay(delay)))
                 .filter(source -> ((File) source).getName().endsWith(".cbr") || ((File) source).getName().endsWith(".cbz"))
                 .log("in", message -> message.getPayload())
                 .handle(targetDirectory)
@@ -38,12 +39,14 @@ public class FilePollingIntegrationFlow {
     }
 
     @Bean(name = "targetDirectory")
-    public MessageHandler targetDirectory(@Value("${source}") String source) {
+    public MessageHandler targetDirectory(
+            @Value("${source}") String source,
+            NumberGenerator numberGenerator) {
         FileWritingMessageHandler handler = new FileWritingMessageHandler(new File(source + "/out"));
         handler.setDeleteSourceFiles(true);
         handler.setFileExistsMode(FileExistsMode.REPLACE);
         handler.setExpectReply(false);
-        handler.setFileNameGenerator(processingFileNameGenerator(numberGenerator()));
+        handler.setFileNameGenerator(processingFileNameGenerator(numberGenerator));
         handler.setLoggingEnabled(true);
         handler.setAutoCreateDirectory(true);
         return handler;
@@ -55,8 +58,8 @@ public class FilePollingIntegrationFlow {
     }
 
     @Bean
-    public NumberGenerator numberGenerator() {
-        return new NumberGenerator();
+    public NumberGenerator numberGenerator(@Value("${lastNumber:}") Integer lastNumber) {
+        return new NumberGenerator(lastNumber);
     }
 
 }
